@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "axiom": {
+      "command": "npx",
+      "args": ["-y", "axiom-mcp"]
+    },
+    "XcodeBuildMCP": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "xcodebuildmcp@beta",
+        "mcp"
+      ]
+    }
+  }
+}
