@@ -59,6 +59,37 @@ On iOS, audio playback uses a native `AVAudioEngine` pipeline (instead of Web Au
    ```
 3. Build and run on a simulator or device from Xcode.
 
+## Deployment
+
+The web app can be deployed to [Vercel](https://vercel.com/).
+
+1. Install the Vercel CLI and log in:
+   ```sh
+   bunx vercel login
+   ```
+2. Link the project (first time only):
+   ```sh
+   bunx vercel link
+   ```
+3. Deploy to production:
+   ```sh
+   bunx vercel --prod
+   ```
+
+### API Key
+
+For **local development**, add your Gemini API key to the `.env.local` file:
+```
+GEMINI_API_KEY=your_key_here
+```
+
+For **deployment**, the `.env.local` file is not uploaded. You need to add the API key as an environment variable via the Vercel CLI:
+```sh
+bunx vercel env add GEMINI_API_KEY
+```
+
+This will prompt you to paste your key and select which environments (production, preview, development) it applies to. After adding it, redeploy for the change to take effect.
+
 ## Project Structure
 
 ```
