@@ -16,6 +16,9 @@ import { throttle } from "./throttle";
 
 export type PlaybackState = "stopped" | "playing" | "loading" | "paused";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type NativeAudioPlugin = any;
+
 export class LiveMusicHelper extends EventTarget {
   private session: LiveMusicSession | null = null;
   private sessionPromise: Promise<LiveMusicSession> | null = null;
@@ -29,18 +32,28 @@ export class LiveMusicHelper extends EventTarget {
 
   private outputNode: GainNode;
   private playbackState: PlaybackState = "stopped";
+  private _volume = 1;
 
   private prompts: WeightedPrompt[] = [];
   private lastSentPrompts: WeightedPrompt[] = [];
 
+  private readonly useNativeAudio: boolean;
+  private readonly nativeAudio: NativeAudioPlugin | null;
+
   constructor(
     private readonly ai: GoogleGenAI,
     private readonly model: string,
+    nativeAudioPlugin?: NativeAudioPlugin,
   ) {
     super();
     this.prompts = [];
+    this.useNativeAudio = !!nativeAudioPlugin;
+    this.nativeAudio = nativeAudioPlugin ?? null;
     this.audioContext = new AudioContext({ sampleRate: 48000 });
     this.outputNode = this.audioContext.createGain();
+    this.outputNode.gain.value = 1;
+    console.log("[LiveMusicHelper] Constructor: AudioContext created, sample rate:", this.audioContext.sampleRate);
+    console.log("[LiveMusicHelper] Constructor: useNativeAudio:", this.useNativeAudio);
   }
 
   private getSession(): Promise<LiveMusicSession> {
@@ -49,11 +62,13 @@ export class LiveMusicHelper extends EventTarget {
   }
 
   private async connect(): Promise<LiveMusicSession> {
+    console.log("[LiveMusicHelper] Connecting to Lyria RealTime...");
     this.sessionPromise = this.ai.live.music.connect({
       model: this.model,
       callbacks: {
         onmessage: async (e: LiveMusicServerMessage) => {
           if (e.filteredPrompt) {
+            console.log("[LiveMusicHelper] Filtered prompt:", e.filteredPrompt.text);
             this.filteredPrompts = new Set([
               ...this.filteredPrompts,
               e.filteredPrompt.text!,
@@ -65,22 +80,25 @@ export class LiveMusicHelper extends EventTarget {
             );
           }
           if (e.serverContent?.audioChunks) {
+            console.log("[LiveMusicHelper] Received audio chunks:", e.serverContent.audioChunks.length);
             await this.processAudioChunks(e.serverContent.audioChunks);
           }
         },
-        onclose: () => console.log("Lyria RealTime stream closed."),
+        onclose: () => console.log("[LiveMusicHelper] Lyria RealTime stream closed."),
         onerror: (e: unknown) => {
+          console.error("[LiveMusicHelper] Lyria RealTime error", e);
           this.stop();
           this.dispatchEvent(
             new CustomEvent("error", {
               detail: "Connection error, please restart audio.",
             }),
           );
-          console.log("Lyria RealTime error", e);
         },
       },
     });
-    return this.sessionPromise;
+    const session = await this.sessionPromise;
+    console.log("[LiveMusicHelper] Connected to Lyria RealTime successfully");
+    return session;
   }
 
   private setPlaybackState(state: PlaybackState) {
@@ -91,11 +109,28 @@ export class LiveMusicHelper extends EventTarget {
   }
 
   private async processAudioChunks(audioChunks: AudioChunk[]) {
+    console.log("[LiveMusicHelper] processAudioChunks called, playbackState:", this.playbackState);
+
     if (this.playbackState === "paused" || this.playbackState === "stopped") {
+      console.log("[LiveMusicHelper] Ignoring audio chunks, playback is paused/stopped");
       return;
     }
 
     this.checkPromptFreshness(this.getChunkTexts(audioChunks));
+
+    if (this.useNativeAudio && this.nativeAudio) {
+      // Send raw base64 PCM data directly to native for playback
+      await this.nativeAudio.sendAudioChunk({ data: audioChunks[0].data });
+
+      if (this.nextStartTime === 0) {
+        this.nextStartTime = 1; // Flag that we've started buffering
+        console.log("[LiveMusicHelper] First native audio chunk sent, waiting for buffer...");
+        setTimeout(() => {
+          this.setPlaybackState("playing");
+        }, this.bufferTime * 1000);
+      }
+      return;
+    }
 
     const audioBuffer = await decodeAudioData(
       decode(audioChunks[0].data!),
@@ -103,26 +138,32 @@ export class LiveMusicHelper extends EventTarget {
       48000,
       2,
     );
+    console.log("[LiveMusicHelper] Audio buffer decoded, duration:", audioBuffer.duration);
 
     const source = this.audioContext.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(this.outputNode);
+    console.log("[LiveMusicHelper] Audio source created and connected to outputNode");
 
     if (this.nextStartTime === 0) {
       this.nextStartTime = this.audioContext.currentTime + this.bufferTime;
+      console.log("[LiveMusicHelper] First audio chunk, scheduling playback at:", this.nextStartTime);
       setTimeout(() => {
         this.setPlaybackState("playing");
       }, this.bufferTime * 1000);
     }
 
     if (this.nextStartTime < this.audioContext.currentTime) {
+      console.log("[LiveMusicHelper] Buffer underrun! nextStartTime:", this.nextStartTime, "currentTime:", this.audioContext.currentTime);
       this.setPlaybackState("loading");
       this.nextStartTime = 0;
       return;
     }
 
     source.start(this.nextStartTime);
+    console.log("[LiveMusicHelper] Audio source started at:", this.nextStartTime, "duration:", audioBuffer.duration);
     this.nextStartTime += audioBuffer.duration;
+    console.log("[LiveMusicHelper] Next start time:", this.nextStartTime);
   }
 
   private getChunkTexts(chunks: AudioChunk[]): string[] {
@@ -144,6 +185,31 @@ export class LiveMusicHelper extends EventTarget {
 
     this.dispatchEvent(new CustomEvent("prompts-fresh"));
     this.lastSentPrompts = []; // clear so we only fire once
+  }
+
+  public get volume(): number {
+    return this._volume;
+  }
+
+  public setVolume(value: number) {
+    this._volume = Math.max(0, Math.min(1, value));
+
+    if (this.useNativeAudio && this.nativeAudio) {
+      this.nativeAudio.setVolume({ volume: this._volume });
+      return;
+    }
+
+    if (this.playbackState === "playing") {
+      this.outputNode.gain.cancelScheduledValues(this.audioContext.currentTime);
+      this.outputNode.gain.setValueAtTime(
+        this.outputNode.gain.value,
+        this.audioContext.currentTime,
+      );
+      this.outputNode.gain.linearRampToValueAtTime(
+        this._volume,
+        this.audioContext.currentTime + 0.05,
+      );
+    }
   }
 
   public get activePrompts(): WeightedPrompt[] {
@@ -189,57 +255,101 @@ export class LiveMusicHelper extends EventTarget {
   }
 
   public async play() {
+    console.log("[LiveMusicHelper] play() called");
+    console.log("[LiveMusicHelper] Current volume:", this._volume);
+
     this.setPlaybackState("loading");
     this.session = await this.getSession();
+    console.log("[LiveMusicHelper] Session created:", !!this.session);
 
     void this.setWeightedPromptsImmediate();
 
-    await this.audioContext.resume();
+    if (this.useNativeAudio && this.nativeAudio) {
+      // Set up native audio engine (buffering + playback handled by native side)
+      await this.nativeAudio.setup();
+      await this.nativeAudio.setVolume({ volume: this._volume });
+      console.log("[LiveMusicHelper] Native audio engine set up");
+    } else {
+      await this.audioContext.resume();
+      console.log("[LiveMusicHelper] AudioContext state after resume:", this.audioContext.state);
+    }
+
     this.session.play();
-    this.outputNode.connect(this.audioContext.destination);
-    if (this.extraDestination) this.outputNode.connect(this.extraDestination);
-    this.outputNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-    this.outputNode.gain.linearRampToValueAtTime(
-      1,
-      this.audioContext.currentTime + 0.1,
-    );
+    console.log("[LiveMusicHelper] Session.play() called");
+
+    if (!this.useNativeAudio) {
+      this.outputNode.connect(this.audioContext.destination);
+      console.log("[LiveMusicHelper] OutputNode connected to destination");
+
+      if (this.extraDestination) this.outputNode.connect(this.extraDestination);
+      this.outputNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+      this.outputNode.gain.linearRampToValueAtTime(
+        this._volume,
+        this.audioContext.currentTime + 0.1,
+      );
+      console.log("[LiveMusicHelper] Gain ramp scheduled from 0 to", this._volume);
+    }
   }
 
   public pause() {
     if (this.session) this.session.pause();
     this.setPlaybackState("paused");
-    this.outputNode.gain.setValueAtTime(1, this.audioContext.currentTime);
-    this.outputNode.gain.linearRampToValueAtTime(
-      0,
-      this.audioContext.currentTime + 0.1,
-    );
+
+    if (this.useNativeAudio && this.nativeAudio) {
+      this.nativeAudio.stop().catch(() => {});
+    } else {
+      this.outputNode.gain.setValueAtTime(1, this.audioContext.currentTime);
+      this.outputNode.gain.linearRampToValueAtTime(
+        0,
+        this.audioContext.currentTime + 0.1,
+      );
+      this.outputNode = this.audioContext.createGain();
+    }
+
     this.nextStartTime = 0;
-    this.outputNode = this.audioContext.createGain();
   }
 
   public stop() {
     this.setPlaybackState("stopped");
     this.nextStartTime = 0;
 
-    if (this.session) {
-      const fadeDuration = 1;
-      this.outputNode.gain.cancelScheduledValues(this.audioContext.currentTime);
-      this.outputNode.gain.setValueAtTime(
-        this.outputNode.gain.value,
-        this.audioContext.currentTime,
-      );
-      this.outputNode.gain.linearRampToValueAtTime(
-        0,
-        this.audioContext.currentTime + fadeDuration,
-      );
+    if (this.useNativeAudio && this.nativeAudio) {
+      this.nativeAudio.stop().catch(() => {});
+    }
 
-      const sessionToStop = this.session;
-      setTimeout(() => {
-        sessionToStop.stop();
-      }, fadeDuration * 1000);
+    if (this.session) {
+      if (!this.useNativeAudio) {
+        const fadeDuration = 1;
+        this.outputNode.gain.cancelScheduledValues(this.audioContext.currentTime);
+        this.outputNode.gain.setValueAtTime(
+          this.outputNode.gain.value,
+          this.audioContext.currentTime,
+        );
+        this.outputNode.gain.linearRampToValueAtTime(
+          0,
+          this.audioContext.currentTime + fadeDuration,
+        );
+
+        const sessionToStop = this.session;
+        setTimeout(() => {
+          sessionToStop.stop();
+        }, fadeDuration * 1000);
+      } else {
+        this.session.stop();
+      }
     }
     this.session = null;
     this.sessionPromise = null;
+  }
+
+  public async forceSpeaker() {
+    if (!this.useNativeAudio || !this.nativeAudio) return;
+    return this.nativeAudio.forceSpeaker();
+  }
+
+  public async useDefaultRoute() {
+    if (!this.useNativeAudio || !this.nativeAudio) return;
+    return this.nativeAudio.useDefaultRoute();
   }
 
   public async playPause() {

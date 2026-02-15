@@ -11,9 +11,11 @@ import { classMap } from "lit/directives/class-map.js";
 import { styleMap } from "lit/directives/style-map.js";
 import { when } from "lit/directives/when.js";
 
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { urlargs } from "../utils/urlargs";
 import { defineSystemPrompt } from "../utils/define_system_prompt";
 import { LiveMusicHelper } from "../utils/live_music_helper";
+
 import {
   DEFAULT_INTERVAL_PRESET,
   GEMINI_MODEL,
@@ -69,6 +71,7 @@ export class LyriaCamera extends LitElement {
   @state() private currentSource: StreamSource = "none";
   @state() private intervalPreset = DEFAULT_INTERVAL_PRESET;
   @state() private captureCountdown = 0;
+  @state() private volume = 1;
 
   @query("video") private videoElement!: HTMLVideoElement;
   @query("toast-message") private toastMessageElement!: ToastMessage;
@@ -90,7 +93,14 @@ export class LyriaCamera extends LitElement {
       apiVersion: "v1alpha",
     });
 
-    this.liveMusicHelper = new LiveMusicHelper(this.ai, "lyria-realtime-exp");
+    const nativeAudio = Capacitor.isNativePlatform()
+      ? registerPlugin("NativeAudio")
+      : undefined;
+    this.liveMusicHelper = new LiveMusicHelper(
+      this.ai,
+      "lyria-realtime-exp",
+      nativeAudio,
+    );
 
     this.liveMusicHelper.addEventListener(
       "playback-state-changed",
@@ -161,6 +171,7 @@ export class LyriaCamera extends LitElement {
             ...PREFERRED_STREAM_PARAMS,
             facingMode,
           },
+          audio: false, // Explicitly disable audio to prevent mic from activating
         });
         this.currentFacingMode = facingMode;
         break; // Success!
@@ -293,8 +304,10 @@ export class LyriaCamera extends LitElement {
       this.startCrossfade(newPromptTexts);
 
       if (this.appState === "pendingStart") {
+        console.log("[LyriaCamera] Starting music playback");
         await this.liveMusicHelper.play();
         this.appState = "playing";
+        console.log("[LyriaCamera] State changed to playing");
       }
     } catch (e) {
       console.error(e);
@@ -459,16 +472,24 @@ export class LyriaCamera extends LitElement {
   }
 
   private async handlePlayPause() {
+    console.log("[LyriaCamera] handlePlayPause called, appState:", this.appState);
     if (this.page !== "main") return;
     switch (this.appState) {
       case "idle": {
+        // Resume AudioContext immediately from the user gesture.
+        // iOS WKWebView requires this to happen synchronously in the
+        // tap handler — awaiting any async work first breaks the chain.
+        console.log("[LyriaCamera] Resuming AudioContext from user gesture");
+        void this.liveMusicHelper.audioContext.resume();
         this.appState = "pendingStart";
+        console.log("[LyriaCamera] State changed to pendingStart");
 
         await this.captureAndGenerate();
         return;
       }
       case "pendingStart":
       case "playing": {
+        console.log("[LyriaCamera] Requesting stop");
         await this.requestStop();
         return;
       }
@@ -510,6 +531,32 @@ export class LyriaCamera extends LitElement {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  private handleVolumeChange(e: Event) {
+    const input = e.target as HTMLInputElement;
+    this.volume = parseFloat(input.value);
+    this.liveMusicHelper.setVolume(this.volume);
+  }
+
+  private isForcedSpeaker = false;
+
+  private async showRoutePicker() {
+    try {
+      if (this.isForcedSpeaker) {
+        console.log("[AudioRoute] Restoring default route...");
+        await this.liveMusicHelper.useDefaultRoute();
+        this.isForcedSpeaker = false;
+        console.log("[AudioRoute] Default route restored");
+      } else {
+        console.log("[AudioRoute] Forcing speaker output...");
+        await this.liveMusicHelper.forceSpeaker();
+        this.isForcedSpeaker = true;
+        console.log("[AudioRoute] Speaker output forced");
+      }
+    } catch (e) {
+      console.warn("[AudioRoute] Failed:", e);
+    }
   }
 
   private dispatchError(message: string) {
@@ -667,6 +714,34 @@ export class LyriaCamera extends LitElement {
           `,
         )}
       </div>
+
+      <div id="volume-control">
+        <span class="material-icons-round volume-icon">
+          ${this.volume === 0
+            ? "volume_off"
+            : this.volume < 0.5
+              ? "volume_down"
+              : "volume_up"}
+        </span>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          .value=${String(this.volume)}
+          @input=${this.handleVolumeChange}
+          aria-label="Music volume"
+          style="--volume-pct: ${this.volume * 100}%"
+        />
+      </div>
+
+      <button
+        id="route-picker-button"
+        @click=${this.showRoutePicker}
+        title="Audio Output"
+      >
+        <span class="material-icons-round">speaker</span>
+      </button>
 
       <button
         id="interval-button"

@@ -418,6 +418,24 @@ export default css`
     z-index: 6;
   }
 
+  #route-picker-button {
+    position: absolute;
+    bottom: 58px;
+    right: 10px;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    z-index: 6;
+    opacity: 0.8;
+  }
+
   #interval-button {
     position: absolute;
     bottom: 10px;
@@ -526,6 +544,58 @@ export default css`
     letter-spacing: 0.3em;
     font-size: 12px;
     color: rgba(255, 255, 255, 0.9);
+  }
+
+  #volume-control {
+    position: absolute;
+    bottom: 14px;
+    right: 56px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 6;
+  }
+
+  .volume-icon {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 20px;
+    width: 20px;
+  }
+
+  #volume-control input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 80px;
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.8) 0%,
+      rgba(255, 255, 255, 0.8) var(--volume-pct, 100%),
+      rgba(255, 255, 255, 0.2) var(--volume-pct, 100%),
+      rgba(255, 255, 255, 0.2) 100%
+    );
+    outline: none;
+    cursor: pointer;
+  }
+
+  #volume-control input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+  }
+
+  #volume-control input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    border: none;
+    cursor: pointer;
   }
 
   #splash .control-button {
