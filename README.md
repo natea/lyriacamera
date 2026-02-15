@@ -19,7 +19,7 @@ Lyria Camera encourages you to slow down and truly observe your surroundings. By
 
 ## Origin
 
-This project was originally a web app, forked from [Google AI Studio](https://ai.studio/apps/drive/1SaMlyfaZjOOClbftnaru4uCrT-6quww0). Using [Capacitor](https://capacitorjs.com/), it was adapted into a native iOS app with custom Swift plugins for audio routing and playback.
+This project is based on [Lyria Camera](https://magenta.withgoogle.com/lyria-camera-announce) by Google, using the [Lyria RealTime API](https://ai.google.dev/gemini-api/docs/music-generation) for music generation. The [original source code](https://aistudio.google.com/apps/bundled/lyria_camera?showPreview=true&showAssistant=true) was a web app built with Lit and TypeScript in Google AI Studio. Using [Capacitor](https://capacitorjs.com/), it was adapted into a native iOS app with custom Swift plugins for audio routing and playback.
 
 On iOS, audio playback uses a native `AVAudioEngine` pipeline (instead of Web Audio API) to enable full control over speaker vs. Bluetooth routing. If you want screen share functionality, run it as a web app since the mobile app only supports camera input.
 
