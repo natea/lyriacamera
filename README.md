@@ -1,10 +1,12 @@
-# Lyria Camera
+# Lyria Camera (LifeTrack)
 
-Turn your world into music with [Lyria RealTime](https://deepmind.google/models/lyria/lyria-realtime/).
+Create a soundtrack to your life with [Lyria RealTime](https://deepmind.google/models/lyria/lyria-realtime/).
 
-Lyria Camera captures images from your camera, uses Google's Gemini to analyze the vibe, objects, and emotions in each frame, and generates evocative music prompts. Those prompts are fed into Lyria RealTime, Google DeepMind's AI music model, to create a continuous, ever-evolving soundtrack that reflects what the camera sees.
+Lyria Camera turns your phone's camera into a musical instrument. It captures what you see, uses Google Gemini's vision AI to interpret the mood, objects, and emotions in the scene, then generates real-time, evolving music through Google's Lyria RealTime AI model. Point your camera at a sunset and hear ambient warmth; look at a busy street and hear energetic rhythms. The music continuously adapts as your surroundings change, with configurable capture intervals and smooth crossfading between musical styles.
 
-Point your camera at a sunset and hear ambient synth pads. Walk through a bustling street and the music shifts to upbeat rhythms. The music regenerates on a configurable interval, crossfading between prompts for smooth transitions.
+### Mindfulness
+
+Lyria Camera encourages you to slow down and truly observe your surroundings. By turning visual attention into music, it transforms passive looking into active seeing — you start noticing the mood of a room, the colors of a landscape, the energy of a space. The configurable capture intervals create a natural rhythm of pause and observation. Instead of scrolling or multitasking, you engage with the present moment through a sensory feedback loop: look, listen, and become more aware of the world around you.
 
 ## Features
 
