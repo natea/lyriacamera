@@ -88,14 +88,26 @@ export class LyriaCamera extends LitElement {
   override async connectedCallback() {
     super.connectedCallback();
 
+    if (!process.env.API_KEY) {
+      console.error("[LyriaCamera] No API key set. Set GEMINI_API_KEY in .env.local (local) or via Vercel env vars (production).");
+      this.supportsScreenShare = !!navigator.mediaDevices?.getDisplayMedia;
+      void this.updateCameraCapabilities();
+      return;
+    }
+
     this.ai = new GoogleGenAI({
       apiKey: process.env.API_KEY,
       apiVersion: "v1alpha",
     });
 
-    const nativeAudio = Capacitor.isNativePlatform()
-      ? registerPlugin("NativeAudio")
-      : undefined;
+    let nativeAudio: ReturnType<typeof registerPlugin> | undefined;
+    try {
+      nativeAudio = Capacitor.isNativePlatform()
+        ? registerPlugin("NativeAudio")
+        : undefined;
+    } catch {
+      // Not running in Capacitor native context
+    }
     this.liveMusicHelper = new LiveMusicHelper(
       this.ai,
       "lyria-realtime-exp",
@@ -474,6 +486,10 @@ export class LyriaCamera extends LitElement {
   private async handlePlayPause() {
     console.log("[LyriaCamera] handlePlayPause called, appState:", this.appState);
     if (this.page !== "main") return;
+    if (!this.liveMusicHelper) {
+      this.dispatchError("API key not configured. Music generation is unavailable.");
+      return;
+    }
     switch (this.appState) {
       case "idle": {
         // Resume AudioContext immediately from the user gesture.
@@ -534,14 +550,19 @@ export class LyriaCamera extends LitElement {
   }
 
   private handleVolumeChange(e: Event) {
+    if (!this.liveMusicHelper) return;
     const input = e.target as HTMLInputElement;
     this.volume = parseFloat(input.value);
     this.liveMusicHelper.setVolume(this.volume);
   }
 
   private isForcedSpeaker = false;
+  private get isNativePlatform(): boolean {
+    try { return Capacitor.isNativePlatform(); } catch { return false; }
+  }
 
   private async showRoutePicker() {
+    if (!this.liveMusicHelper) return;
     try {
       if (this.isForcedSpeaker) {
         console.log("[AudioRoute] Restoring default route...");
@@ -735,13 +756,18 @@ export class LyriaCamera extends LitElement {
         />
       </div>
 
-      <button
-        id="route-picker-button"
-        @click=${this.showRoutePicker}
-        title="Audio Output"
-      >
-        <span class="material-icons-round">speaker</span>
-      </button>
+      ${when(
+        this.isNativePlatform,
+        () => html`
+          <button
+            id="route-picker-button"
+            @click=${this.showRoutePicker}
+            title="Audio Output"
+          >
+            <span class="material-icons-round">speaker</span>
+          </button>
+        `,
+      )}
 
       <button
         id="interval-button"
