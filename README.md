@@ -1,12 +1,12 @@
-# Lyria Camera (LifeTrack)
+# LifeTrack
 
 Create a soundtrack to your life with [Lyria RealTime](https://deepmind.google/models/lyria/lyria-realtime/).
 
-Lyria Camera turns your phone's camera into a musical instrument. It captures what you see, uses Google Gemini's vision AI to interpret the mood, objects, and emotions in the scene, then generates real-time, evolving music through Google's Lyria RealTime AI model. Point your camera at a sunset and hear ambient warmth; look at a busy street and hear energetic rhythms. The music continuously adapts as your surroundings change, with configurable capture intervals and smooth crossfading between musical styles.
+LifeTrack turns your phone's camera into a musical instrument. It captures what you see, uses Google Gemini's vision AI to interpret the mood, objects, and emotions in the scene, then generates real-time, evolving music through Google's Lyria RealTime AI model. Point your camera at a sunset and hear ambient warmth; look at a busy street and hear energetic rhythms. The music continuously adapts as your surroundings change, with configurable capture intervals and smooth crossfading between musical styles.
 
 ### Mindfulness
 
-Lyria Camera encourages you to slow down and truly observe your surroundings. By turning visual attention into music, it transforms passive looking into active seeing — you start noticing the mood of a room, the colors of a landscape, the energy of a space. The configurable capture intervals create a natural rhythm of pause and observation. Instead of scrolling or multitasking, you engage with the present moment through a sensory feedback loop: look, listen, and become more aware of the world around you.
+LifeTrack encourages you to slow down and truly observe your surroundings. By turning visual attention into music, it transforms passive looking into active seeing — you start noticing the mood of a room, the colors of a landscape, the energy of a space. The configurable capture intervals create a natural rhythm of pause and observation. Instead of scrolling or multitasking, you engage with the present moment through a sensory feedback loop: look, listen, and become more aware of the world around you.
 
 ## Features
 
@@ -107,4 +107,4 @@ This file is automatically picked up by Claude Code when you open the project. Y
 
 ## License
 
-Apache-2.0
+MIT
