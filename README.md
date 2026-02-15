@@ -107,4 +107,4 @@ This file is automatically picked up by Claude Code when you open the project. Y
 
 ## License
 
-MIT
+Apache-2.0
